@@ -1,13 +1,31 @@
 # %%
-import statsmodels.api as sm
-import statsmodels.formula.api as smf
-from sklearn import linear_model
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import OrdinalEncoder
-from sklearn.preprocessing import OneHotEncoder
+
 import pandas as pd
 import numpy as np
 import seaborn as sns
+
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+from sklearn.preprocessing import LabelEncoder
+from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.preprocessing import Normalizer
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.metrics import (
+    r2_score,
+    mean_squared_error,
+    accuracy_score,
+    confusion_matrix,
+    classification_report,
+)
+from sklearn import linear_model
+from sklearn import tree
+from sklearn.cluster import KMeans
+
+# StandardScaler preferred over Normalizer, see note 1
+# note 1: https://datascience.stackexchange.com/questions/45900/when-to-use-standard-scaler-and-when-normalizer
+
 
 # %%
 data_path = "../census-data/PUMF_Census_2016/dataverse_files/Data/Census_2016_Individual_PUMF.sav"
@@ -153,8 +171,10 @@ df = pd.get_dummies(df, prefix=["NOCS_cat"], columns=["NOCS_cat"], drop_first=Fa
 # %%
 print(list(df.columns))
 
+# %% [markdown]
+# Regression Models
+
 # %%
-# Exercise 1: a wage model for workers (simple OLS)
 # variable selection
 # y - Wages
 # X
@@ -163,6 +183,7 @@ print(list(df.columns))
 # "HHSIZE_int", "Sex_cat", "BedRm_cat", "MOB5_cat_moved_to_canada_5", "MOB5_cat_moved_within_canada_5", "MOB5_cat_not_moved_5", "MOB1_cat_moved_to_canada_1", "MOB1_cat_moved_within_canada_1", "MOB1_cat_not_moved_1"
 
 # A1. simple regression model
+pred_var = "Wages"
 variable_list = [
     "AGE",
     "Sex_cat",
@@ -181,9 +202,10 @@ variable_list = [
     "NOCS_cat_sales_agri",
 ]
 
-X, y = df[variable_list], df.Wages
+X, y = df[variable_list], df[pred_var]
 
 X = sm.add_constant(X)
+variable_list.append("const")
 model = sm.OLS(y, X).fit()
 print(model.summary())
 
@@ -230,8 +252,16 @@ print(results.summary())
 # - Hazard Regression - https://www.statsmodels.org/stable/generated/statsmodels.duration.hazard_regression.PHReg.html#statsmodels.duration.hazard_regression.PHReg
 # - GLM Additive Model - https://www.statsmodels.org/stable/generated/statsmodels.gam.generalized_additive_model.GLMGam.html#statsmodels.gam.generalized_additive_model.GLMGam
 
+# feature selection
+# - Variance Threshold
+from sklearn.feature_selection import VarianceThreshold
+
+sel = VarianceThreshold(threshold=(0.8 * (1 - 0.8)))
+sel.fit(X)
+print(sel.get_feature_names_out())
+
+
 # %%
-from sklearn.metrics import r2_score, mean_squared_error
 import math
 
 # B1: ML Regression
@@ -273,13 +303,233 @@ print(reg.intercept_, reg.coef_, reg.score(X, y))
 print(f"r2: {r2_score(y, y_pred)}")
 print(f"rmse: {math.sqrt(mean_squared_error(y, y_pred))}")
 
+# # %%
+# # Support Vector Machine for Regression
+# from sklearn import svm
+
+# reg = svm.SVR()
+# reg.fit(X, y)
+# y_pred = reg.predict(X)
+# print(reg.alpha_)
+# print(reg.intercept_, reg.coef_, reg.score(X, y))
+# print(f"r2: {r2_score(y, y_pred)}")
+# print(f"rmse: {math.sqrt(mean_squared_error(y, y_pred))}")
+
+# %%
+# Regression Tree
+# https://scikit-learn.org/stable/auto_examples/tree/plot_tree_regression.html
+
+# normalize data
+# https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.normalize.html
+transformer = Normalizer().fit(X)
+Xt = transformer.transform(X)
+
+reg = tree.DecisionTreeRegressor(max_depth=6)
+reg.fit(Xt, y)
+y_pred = reg.predict(Xt)
+print(f"r2: {r2_score(y, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y, y_pred))}")
+# tree.plot_tree(reg)
+# https://stackoverflow.com/questions/68352933/name-of-variables-in-sklearn-pipeline
+r = tree.export_text(reg, feature_names=variable_list)
+print(r)
+pd.DataFrame({"name": list(X.columns), "value": reg.feature_importances_}).head(20)
+
+# %%
+# Random Forest
+from sklearn.ensemble import RandomForestClassifier
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+reg = RandomForestClassifier(n_estimators=5)
+reg.fit(X_train, y_train)
+y_pred = reg.predict(X_test)
+print(f"r2: {r2_score(y_test, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y_test, y_pred))}")
+pd.DataFrame({"name": list(X.columns), "value": reg.feature_importances_}).head(20)
+
+
+# %%
+# AdaBoost
+from sklearn.ensemble import AdaBoostClassifier
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+reg = AdaBoostClassifier(n_estimators=5)
+scores = cross_val_score(reg, X_train, y_train, cv=5)
+print(f"scores: {scores}")
+reg.fit(X_train, y_train)
+y_pred = reg.predict(X_test)
+print(f"r2: {r2_score(y_test, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y_test, y_pred))}")
+pd.DataFrame({"name": list(X.columns), "value": reg.feature_importances_}).head(20)
+
+
+# %%
+# Gradient Boosting
+from sklearn.ensemble import GradientBoostingRegressor
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+reg = GradientBoostingRegressor(random_state=0)
+scores = cross_val_score(reg, X_train, y_train, cv=5)
+print(f"scores: {scores}")
+reg.fit(X_train, y_train)
+y_pred = reg.predict(X_test)
+print(f"r2: {r2_score(y_test, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y_test, y_pred))}")
+pd.DataFrame({"name": list(X.columns), "value": reg.feature_importances_}).head(20)
+
+# %%
+# Histogram-based Gradient Boosting
+# https://scikit-learn.org/stable/modules/ensemble.html#histogram-based-gradient-boosting
+from sklearn.ensemble import HistGradientBoostingRegressor
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+reg = HistGradientBoostingRegressor(random_state=0)
+scores = cross_val_score(reg, X_train, y_train, cv=5)
+print(f"scores: {scores}")
+reg.fit(X_train, y_train)
+y_pred = reg.predict(X_test)
+print(f"r2: {r2_score(y_test, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y_test, y_pred))}")
+# pd.DataFrame({"name": list(X.columns), "value": reg.feature_importances_}).head(20)
+
+# %%
+# # Artificial Neural Network
+# from sklearn.neural_network import MLPClassifier
+
+# X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+# scaler = StandardScaler()
+# scaler.fit(X_train)
+# X_train = scaler.transform(X_train)
+# X_test = scaler.transform(X_test)
+
+# reg = MLPClassifier(
+#     solver="lbfgs", alpha=1e-5, hidden_layer_sizes=(5, 2), random_state=1
+# )
+# scores = cross_val_score(reg, X_train, y_train, cv=5)
+# print(f"scores: {scores}")
+# reg.fit(X_train, y_train)
+# y_pred = reg.predict(X_test)
+# print(f"r2: {r2_score(y_test, y_pred)}")
+# print(f"rmse: {math.sqrt(mean_squared_error(y_test, y_pred))}")
+
+# # ~25 mins
+
+# %% [markdown]
+# Classification Models
+
 # %%
 # C1: ML Classification
 
+pred_var = "BedRm"
+variable_list = [
+    "AGE",
+    "Wages",
+    "Sex_cat",
+    "MOB5_cat_moved_to_canada_5",
+    "MOB5_cat_moved_within_canada_5",
+    # "MOB5_cat_not_moved_5",
+    # "MOB1_cat_moved_to_canada_1",
+    # "MOB1_cat_moved_within_canada_1",
+    "MOB1_cat_not_moved_1",
+    "NOCS_cat_Not",
+    "NOCS_cat_art_trades_manuf",
+    # "NOCS_cat_busi",
+    "NOCS_cat_health_edu_law",
+    "NOCS_cat_mgmt_sci",
+    "NOCS_cat_sales_agri",
+]
+
+X, y = df[variable_list], df[pred_var]
+y_classes = list(df[pred_var].unique())
+
+# %%
+# Classification Tree
+# https://scikit-learn.org/stable/auto_examples/tree/plot_tree_regression.html
+
+# X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=0)
+
+# normalize data
+# https://scikit-learn.org/stable/modules/generated/sklearn.preprocessing.normalize.html
+transformer = Normalizer().fit(X)
+Xt = transformer.transform(X)
+
+reg = tree.DecisionTreeClassifier(max_depth=6)
+reg.fit(Xt, y)
+y_pred = reg.predict(Xt)
+print(f"score: {accuracy_score(y, y_pred)}")
+print(classification_report(y, y_pred, target_names=y_classes))
+# tree.plot_tree(reg)
+# https://stackoverflow.com/questions/68352933/name-of-variables-in-sklearn-pipeline
+r = tree.export_text(reg, feature_names=variable_list)
+print(r)
+pd.DataFrame({"name": list(X.columns), "value": reg.feature_importances_}).head(20)
+
+# notes:
+# Precision - TP / (TP + FP): fraction of true that is actually true
+# Recall - TP / (TP + FN): fraction of true that was originally true
+# f score - composite (avg) of precision and recall, 1 is perfect
+
+
+# %% [markdown]
+# Clustering Models
+
+variable_list = [
+    "AGE",
+    "Wages",
+    "Sex_cat",
+    "MOB5_cat_moved_to_canada_5",
+    "MOB5_cat_moved_within_canada_5",
+    # "MOB5_cat_not_moved_5",
+    # "MOB1_cat_moved_to_canada_1",
+    # "MOB1_cat_moved_within_canada_1",
+    "MOB1_cat_not_moved_1",
+    "NOCS_cat_Not",
+    "NOCS_cat_art_trades_manuf",
+    # "NOCS_cat_busi",
+    "NOCS_cat_health_edu_law",
+    "NOCS_cat_mgmt_sci",
+    "NOCS_cat_sales_agri",
+]
+
+X = df[variable_list]
 
 # %%
 # D1: ML Clustering
 
+scaler = StandardScaler()
+scaler.fit(X)
+X = scaler.transform(X)
+kmeans = KMeans(n_clusters=6, random_state=0).fit(X)
+kmeans.labels_
+y = kmeans.predict(X)
+cc = kmeans.cluster_centers_
+# dict(zip(list(range(0,len(cc))), cc))
+cc_dict = {("cluster" + str(i)): cc[i] for i in range(0, len(cc))}
+view_dict = {"name": variable_list}
+view_dict.update(cc_dict)
+pd.DataFrame(view_dict)
+
+#%%
+df.groupby('cluster').sum()['WEIGHT'].round(0)/df.sum()['WEIGHT']*100
+
+# %%
+df["cluster"] = y
+
+# sns.scatterplot(data=df.sample(100), x="Wages", y="AGE", hue="cluster", size=10)
+
+sns.displot(
+    data=df.sample(100), x="Wages", y="AGE", hue="cluster", kind="kde", rug=True
+)
+
+# sns.displot(
+#     data=df.sample(100), x="Wages", y="AGE", hue="cluster", kind="hist", rug=True
+# )
+
+pivot_df = df.pivot_table(index='cluster', columns='DPGRSUM', aggfunc='sum')['WEIGHT']
+pivot_df / pivot_df.sum() * 100
+
+# %% [markdown]
+# Dimensionality Reduction Models
 
 # %%
 # E1: ML Dimensionality Reduction
