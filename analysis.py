@@ -510,10 +510,10 @@ view_dict.update(cc_dict)
 pd.DataFrame(view_dict)
 
 #%%
-df.groupby('cluster').sum()['WEIGHT'].round(0)/df.sum()['WEIGHT']*100
+df["cluster"] = y
+df.groupby("cluster").sum()["WEIGHT"].round(0) / df.sum()["WEIGHT"] * 100
 
 # %%
-df["cluster"] = y
 
 # sns.scatterplot(data=df.sample(100), x="Wages", y="AGE", hue="cluster", size=10)
 
@@ -525,7 +525,7 @@ sns.displot(
 #     data=df.sample(100), x="Wages", y="AGE", hue="cluster", kind="hist", rug=True
 # )
 
-pivot_df = df.pivot_table(index='cluster', columns='DPGRSUM', aggfunc='sum')['WEIGHT']
+pivot_df = df.pivot_table(index="cluster", columns="DPGRSUM", aggfunc="sum")["WEIGHT"]
 pivot_df / pivot_df.sum() * 100
 
 # %% [markdown]
