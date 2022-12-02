@@ -183,11 +183,6 @@ variable_list = [
 
 X, y = df[variable_list], df.Wages
 
-# # using sklearn
-# reg = linear_model.LinearRegression()
-# reg.fit(X, y)
-# print(reg.intercept_, reg.coef_, reg.score(X, y))
-
 X = sm.add_constant(X)
 model = sm.OLS(y, X).fit()
 print(model.summary())
@@ -199,7 +194,7 @@ print(model.summary())
 # https://www.statsmodels.org/stable/api.html#statsmodels-formula-api
 # print(' + '.join(variable_list))
 results = smf.ols(
-    "Wages ~ np.log(AGE) + Sex_cat + BedRm_cat + MOB5_cat_moved_to_canada_5 + MOB5_cat_moved_within_canada_5 + MOB1_cat_moved_to_canada_1 + MOB1_cat_moved_within_canada_1 + MOB1_cat_not_moved_1 + NOCS_cat_A + NOCS_cat_B + NOCS_cat_C + NOCS_cat_D + NOCS_cat_E + NOCS_cat_F + NOCS_cat_G + NOCS_cat_H + NOCS_cat_I + NOCS_cat_J + NOCS_cat_Not",
+    "Wages ~ np.log(AGE) + Sex_cat + BedRm_cat + MOB5_cat_moved_to_canada_5 + MOB5_cat_moved_within_canada_5 + MOB1_cat_not_moved_1 + NOCS_cat_Not + NOCS_cat_art_trades_manuf + NOCS_cat_health_edu_law + NOCS_cat_mgmt_sci + NOCS_cat_sales_agri",
     data=df,
 ).fit()
 print(results.summary())
@@ -210,7 +205,7 @@ print(results.summary())
 
 # A3. Generalize Linear
 results = smf.gls(
-    "Wages ~ np.log(AGE) + Sex_cat + BedRm_cat + MOB5_cat_moved_to_canada_5 + MOB5_cat_moved_within_canada_5 + MOB1_cat_moved_to_canada_1 + MOB1_cat_moved_within_canada_1 + MOB1_cat_not_moved_1 + NOCS_cat_A + NOCS_cat_B + NOCS_cat_C + NOCS_cat_D + NOCS_cat_E + NOCS_cat_F + NOCS_cat_G + NOCS_cat_H + NOCS_cat_I + NOCS_cat_J + NOCS_cat_Not",
+    "Wages ~ np.log(AGE) + Sex_cat + BedRm_cat + MOB5_cat_moved_to_canada_5 + MOB5_cat_moved_within_canada_5 + MOB1_cat_not_moved_1 + NOCS_cat_Not + NOCS_cat_art_trades_manuf + NOCS_cat_health_edu_law + NOCS_cat_mgmt_sci + NOCS_cat_sales_agri",
     data=df,
 ).fit()
 print(results.summary())
@@ -236,9 +231,47 @@ print(results.summary())
 # - GLM Additive Model - https://www.statsmodels.org/stable/generated/statsmodels.gam.generalized_additive_model.GLMGam.html#statsmodels.gam.generalized_additive_model.GLMGam
 
 # %%
+from sklearn.metrics import r2_score, mean_squared_error
+import math
 
 # B1: ML Regression
+# https://scikit-learn.org/stable/supervised_learning.html#supervised-learning
 
+# OLS Linear Regression using sklearn
+reg = linear_model.LinearRegression()
+reg.fit(X, y)
+y_pred = reg.predict(X)
+print(reg.intercept_, reg.coef_, reg.score(X, y))
+print(f"r2: {r2_score(y, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y, y_pred))}")
+
+# %%
+# Ridge Regression
+reg = linear_model.Ridge(alpha=0.5)
+reg.fit(X, y)
+y_pred = reg.predict(X)
+print(reg.intercept_, reg.coef_, reg.score(X, y))
+print(f"r2: {r2_score(y, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y, y_pred))}")
+
+# %%
+# Lasso Regression
+reg = linear_model.Lasso(alpha=0.1)
+reg.fit(X, y)
+y_pred = reg.predict(X)
+print(reg.intercept_, reg.coef_, reg.score(X, y))
+print(f"r2: {r2_score(y, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y, y_pred))}")
+
+# %%
+# Elastic Net with Cross Grid
+reg = linear_model.ElasticNetCV(cv=5, random_state=0)
+reg.fit(X, y)
+y_pred = reg.predict(X)
+print(reg.alpha_)
+print(reg.intercept_, reg.coef_, reg.score(X, y))
+print(f"r2: {r2_score(y, y_pred)}")
+print(f"rmse: {math.sqrt(mean_squared_error(y, y_pred))}")
 
 # %%
 # C1: ML Classification
